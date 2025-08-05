@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Video & Post App</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f2f5;
+            color: #333;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 1rem;
+        }
+        .card {
+            background-color: #fff;
+            border-radius: 0.75rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+        .btn {
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.5rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .btn-primary {
+            background-color: #4f46e5;
+            color: #fff;
+        }
+        .btn-primary:hover {
+            background-color: #4338ca;
+        }
+        .btn-secondary {
+            background-color: #e5e7eb;
+            color: #374151;
+        }
+        .btn-secondary:hover {
+            background-color: #d1d5db;
+        }
+        .input-field {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid #d1d5db;
+            border-radius: 0.5rem;
+            margin-bottom: 1rem;
+        }
+        .message-box {
+            background-color: #fefcbf;
+            color: #8a6534;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            margin-top: 1rem;
+            display: none; /* Hidden by default */
+        }
+        .video-player-wrapper {
+            position: relative;
+            width: 100%;
+            padding-bottom: 56.25%; /* 16:9 Aspect Ratio */
+            height: 0;
+            overflow: hidden;
+            border-radius: 0.75rem;
+        }
+        .video-player-wrapper iframe {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border: 0;
+        }
+    </style>
+</head>
+<body class="bg-gray-100">
+    <header class="bg-white shadow-md py-4">
+        <div class="container flex justify-between items-center">
+            <h1 class="text-2xl font-bold text-indigo-700">My App</h1>
+            <nav>
+                <ul class="flex space-x-4">
+                    <li><button id="homeBtn" class="btn btn-secondary">Home</button></li>
+                    <li><button id="uploadBtn" class="btn btn-secondary">Upload</button></li>
+                    <li><button id="createPostBtn" class="btn btn-secondary">Create Post</button></li>
+                    <li><button id="authBtn" class="btn btn-primary"></button></li>
+                </ul>
+            </nav>
+        </div>
+    </header>
+
+    <main class="container mt-8">
+        <!-- Message Box -->
+        <div id="messageBox" class="message-box"></div>
+
+        <!-- Loading Indicator -->
+        <div id="loadingIndicator" class="hidden fixed inset-0 bg-gray-600 bg-opacity-75 flex items-center justify-center z-50">
+            <div class="animate-spin rounded-full h-32 w-32 border-t-2 border-b-2 border-indigo-500"></div>
+        </div>
+
+        <!-- Home Section -->
+        <section id="homeSection" class="active-section">
+            <h2 class="text-3xl font-bold mb-6 text-gray-800">Latest Videos & Posts</h2>
+            <div id="contentFeed" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <!-- Content will be loaded here -->
+            </div>
+        </section>
+
+        <!-- Upload File Section -->
+        <section id="uploadSection" class="hidden">
+            <h2 class="text-3xl font-bold mb-6 text-gray-800">Upload File</h2>
+            <div class="card">
+                <input type="file" id="fileInput" class="input-field mb-4">
+                <input type="text" id="fileTitle" placeholder="File Title (e.g., My Awesome Video)" class="input-field">
+                <input type="text" id="youtubeUrl" placeholder="YouTube Embed URL (optional, for videos)" class="input-field">
+                <button id="uploadFileBtn" class="btn btn-primary w-full">Upload File</button>
+                <div id="uploadProgress" class="mt-4 text-center text-gray-600"></div>
+            </div>
+        </section>
+
+        <!-- Create Post Section -->
+        <section id="createPostSection" class="hidden">
+            <h2 class="text-3xl font-bold mb-6 text-gray-800">Create New Post</h2>
+            <div class="card">
+                <input type="text" id="postTitle" placeholder="Post Title" class="input-field">
+                <textarea id="postContent" placeholder="Write your post content here..." rows="6" class="input-field"></textarea>
+                <button id="submitPostBtn" class="btn btn-primary w-full">Publish Post</button>
+            </div>
+        </section>
+
+        <!-- Auth Section -->
+        <section id="authSection" class="hidden">
+            <h2 class="text-3xl font-bold mb-6 text-gray-800">Authentication</h2>
+            <div class="card">
+                <div id="loggedInUser" class="text-lg font-semibold mb-4 hidden"></div>
+                <input type="email" id="emailInput" placeholder="Email" class="input-field">
+                <input type="password" id="passwordInput" placeholder="Password" class="input-field">
+                <button id="signInBtn" class="btn btn-primary w-full mb-2">Sign In</button>
+                <button id="signUpBtn" class="btn btn-secondary w-full">Sign Up</button>
+                <button id="signOutBtn" class="btn btn-secondary w-full mt-4 hidden">Sign Out</button>
+            </div>
+        </section>
+    </main>
+
+    <!-- Firebase SDKs -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, getDocs, onSnapshot, query, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-storage.js";
+
+        // Global Firebase variables (provided by Canvas environment)
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        let app, db, auth, storage;
+        let userId = null; // To store the current user's ID
+
+        // --- UI Elements ---
+        const homeSection = document.getElementById('homeSection');
+        const uploadSection = document.getElementById('uploadSection');
+        const createPostSection = document.getElementById('createPostSection');
+        const authSection = document.getElementById('authSection');
+
+        const homeBtn = document.getElementById('homeBtn');
+        const uploadBtn = document.getElementById('uploadBtn');
+        const createPostBtn = document.getElementById('createPostBtn');
+        const authBtn = document.getElementById('authBtn');
+
+        const fileInput = document.getElementById('fileInput');
+        const fileTitleInput = document.getElementById('fileTitle');
+        const youtubeUrlInput = document.getElementById('youtubeUrl');
+        const uploadFileBtn = document.getElementById('uploadFileBtn');
+        const uploadProgress = document.getElementById('uploadProgress');
+
+        const postTitleInput = document.getElementById('postTitle');
+        const postContentInput = document.getElementById('postContent');
+        const submitPostBtn = document.getElementById('submitPostBtn');
+
+        const emailInput = document.getElementById('emailInput');
+        const passwordInput = document.getElementById('passwordInput');
+        const signInBtn = document.getElementById('signInBtn');
+        const signUpBtn = document.getElementById('signUpBtn');
+        const signOutBtn = document.getElementById('signOutBtn');
+        const loggedInUserDiv = document.getElementById('loggedInUser');
+
+        const contentFeed = document.getElementById('contentFeed');
+        const messageBox = document.getElementById('messageBox');
+        const loadingIndicator = document.getElementById('loadingIndicator');
+
+        // --- Utility Functions ---
+        function showSection(sectionToShow) {
+            const sections = [homeSection, uploadSection, createPostSection, authSection];
+            sections.forEach(section => {
+                if (section === sectionToShow) {
+                    section.classList.remove('hidden');
+                    section.classList.add('active-section');
+                } else {
+                    section.classList.add('hidden');
+                    section.classList.remove('active-section');
+                }
+            });
+        }
+
+        function showMessage(message, type = 'warning') {
+            messageBox.textContent = message;
+            messageBox.className = `message-box mt-4`; // Reset classes
+            if (type === 'success') {
+                messageBox.classList.add('bg-green-100', 'text-green-800');
+            } else if (type === 'error') {
+                messageBox.classList.add('bg-red-100', 'text-red-800');
+            } else { // warning or default
+                messageBox.classList.add('bg-yellow-100', 'text-yellow-800');
+            }
+            messageBox.style.display = 'block';
+            setTimeout(() => {
+                messageBox.style.display = 'none';
+            }, 5000); // Hide after 5 seconds
+        }
+
+        function showLoading() {
+            loadingIndicator.classList.remove('hidden');
+        }
+
+        function hideLoading() {
+            loadingIndicator.classList.add('hidden');
+        }
+
+        // --- Firebase Initialization and Authentication ---
+        async function initializeFirebase() {
+            try {
+                app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+                storage = getStorage(app);
+
+                // Listen for auth state changes
+                onAuthStateChanged(auth, async (user) => {
+                    if (user) {
+                        userId = user.uid;
+                        loggedInUserDiv.textContent = `Logged in as: ${user.email || 'Anonymous'} (ID: ${userId})`;
+                        loggedInUserDiv.classList.remove('hidden');
+                        authBtn.textContent = 'Sign Out';
+                        signOutBtn.classList.remove('hidden');
+                        emailInput.value = '';
+                        passwordInput.value = '';
+                        emailInput.classList.add('hidden');
+                        passwordInput.classList.add('hidden');
+                        signInBtn.classList.add('hidden');
+                        signUpBtn.classList.add('hidden');
+                        fetchContent(); // Fetch content once authenticated
+                    } else {
+                        userId = null;
+                        loggedInUserDiv.classList.add('hidden');
+                        authBtn.textContent = 'Sign In / Up';
+                        signOutBtn.classList.add('hidden');
+                        emailInput.classList.remove('hidden');
+                        passwordInput.classList.remove('hidden');
+                        signInBtn.classList.remove('hidden');
+                        signUpBtn.classList.remove('hidden');
+                        contentFeed.innerHTML = '<p class="text-center text-gray-500">Please sign in to view content and upload files.</p>';
+                    }
+                });
+
+                // Sign in with custom token if available, otherwise anonymously
+                if (initialAuthToken) {
+                    await signInWithCustomToken(auth, initialAuthToken);
+                } else {
+                    await signInAnonymously(auth);
+                }
+            } catch (error) {
+                console.error("Error initializing Firebase or signing in:", error);
+                showMessage(`Error initializing app: ${error.message}`, 'error');
+            }
+        }
+
+        async function handleSignUp() {
+            const email = emailInput.value;
+            const password = passwordInput.value;
+            if (!email || !password) {
+                showMessage('Please enter email and password.', 'warning');
+                return;
+            }
+            showLoading();
+            try {
+                await createUserWithEmailAndPassword(auth, email, password);
+                showMessage('Signed up successfully!', 'success');
+            } catch (error) {
+                console.error("Error signing up:", error);
+                showMessage(`Sign up failed: ${error.message}`, 'error');
+            } finally {
+                hideLoading();
+            }
+        }
+
+        async function handleSignIn() {
+            const email = emailInput.value;
+            const password = passwordInput.value;
+            if (!email || !password) {
+                showMessage('Please enter email and password.', 'warning');
+                return;
+            }
+            showLoading();
+            try {
+                await signInWithEmailAndPassword(auth, email, password);
+                showMessage('Signed in successfully!', 'success');
+            } catch (error) {
+                console.error("Error signing in:", error);
+                showMessage(`Sign in failed: ${error.message}`, 'error');
+            } finally {
+                hideLoading();
+            }
+        }
+
+        async function handleSignOut() {
+            showLoading();
+            try {
+                await signOut(auth);
+                showMessage('Signed out successfully!', 'success');
+            } catch (error) {
+                console.error("Error signing out:", error);
+                showMessage(`Sign out failed: ${error.message}`, 'error');
+            } finally {
+                hideLoading();
+            }
+        }
+
+        // --- Content Management (Firestore) ---
+        async function fetchContent() {
+            if (!userId) {
+                console.log("Not authenticated, skipping content fetch.");
+                contentFeed.innerHTML = '<p class="text-center text-gray-500 col-span-full">Please sign in to view content and upload files.</p>';
+                hideLoading(); // Ensure loading indicator is hidden if not authenticated
+                return;
+            }
+            showLoading();
+            try {
+                const contentCollectionPath = `artifacts/${appId}/public/data/content`;
+                console.log("Attempting to fetch from Firestore path:", contentCollectionPath); // Added for debugging
+
+                // Use a query to order by timestamp for latest content
+                const q = query(collection(db, contentCollectionPath), orderBy('timestamp', 'desc'));
+
+                // Listen for real-time updates
+                onSnapshot(q, (snapshot) => {
+                    contentFeed.innerHTML = ''; // Clear existing content
+                    if (snapshot.empty) {
+                        contentFeed.innerHTML = '<p class="text-center text-gray-500 col-span-full">No content available yet. Be the first to upload or post!</p>';
+                    }
+                    snapshot.forEach((doc) => {
+                        const data = doc.data();
+                        const contentId = doc.id;
+                        let html = '';
+
+                        if (data.type === 'video' && data.youtubeUrl) {
+                            // Render YouTube video
+                            html = `
+                                <div class="card">
+                                    <div class="video-player-wrapper mb-4">
+                                        <iframe src="${data.youtubeUrl}" allowfullscreen></iframe>
+                                    </div>
+                                    <h3 class="text-xl font-semibold mb-2">${data.title}</h3>
+                                    <p class="text-sm text-gray-600 mb-2">Uploaded by: ${data.uploaderEmail || 'Anonymous'}</p>
+                                    <p class="text-sm text-gray-500">Uploaded on: ${new Date(data.timestamp.toDate()).toLocaleString()}</p>
+                                </div>
+                            `;
+                        } else if (data.type === 'file' && data.fileUrl) {
+                            // Render generic file (e.g., image, document)
+                            let fileDisplay = '';
+                            if (data.fileType && data.fileType.startsWith('image/')) {
+                                fileDisplay = `<img src="${data.fileUrl}" alt="${data.title}" class="w-full h-48 object-cover rounded-md mb-4">`;
+                            } else {
+                                fileDisplay = `<a href="${data.fileUrl}" target="_blank" class="text-indigo-600 hover:underline block mb-4">Download File</a>`;
+                            }
+                            html = `
+                                <div class="card">
+                                    ${fileDisplay}
+                                    <h3 class="text-xl font-semibold mb-2">${data.title}</h3>
+                                    <p class="text-sm text-gray-600 mb-2">Uploaded by: ${data.uploaderEmail || 'Anonymous'}</p>
+                                    <p class="text-sm text-gray-500">Uploaded on: ${new Date(data.timestamp.toDate()).toLocaleString()}</p>
+                                </div>
+                            `;
+                        } else if (data.type === 'post') {
+                            // Render text post
+                            html = `
+                                <div class="card">
+                                    <h3 class="text-xl font-semibold mb-2">${data.title}</h3>
+                                    <p class="text-gray-700 mb-4">${data.content}</p>
+                                    <p class="text-sm text-gray-600 mb-2">Posted by: ${data.authorEmail || 'Anonymous'}</p>
+                                    <p class="text-sm text-gray-500">Posted on: ${new Date(data.timestamp.toDate()).toLocaleString()}</p>
+                                </div>
+                            `;
+                        }
+                        contentFeed.innerHTML += html;
+                    });
+                    hideLoading();
+                }, (error) => {
+                    console.error("Error fetching content:", error);
+                    showMessage(`Error loading content: ${error.message}. Please ensure your Firebase Firestore rules are correctly set to allow authenticated users to read from 'artifacts/${appId}/public/data/content'.`, 'error'); // More specific error message
+                    hideLoading();
+                });
+
+            } catch (error) {
+                console.error("Error fetching content:", error);
+                showMessage(`Error fetching content: ${error.message}`, 'error');
+                hideLoading();
+            }
+        }
+
+        async function uploadFile() {
+            if (!userId) {
+                showMessage('Please sign in to upload files.', 'error');
+                return;
+            }
+
+            const file = fileInput.files[0];
+            const title = fileTitleInput.value.trim();
+            const youtubeUrl = youtubeUrlInput.value.trim();
+
+            if (!file && !youtubeUrl) {
+                showMessage('Please select a file or enter a YouTube embed URL.', 'warning');
+                return;
+            }
+            if (!title) {
+                showMessage('Please enter a title for your upload.', 'warning');
+                return;
+            }
+
+            showLoading();
+            uploadFileBtn.disabled = true;
+            uploadProgress.textContent = 'Starting upload...';
+
+            try {
+                let fileUrl = null;
+                let fileType = null;
+
+                if (file) {
+                    const storageRef = ref(storage, `artifacts/${appId}/public/data/uploads/${userId}/${Date.now()}_${file.name}`);
+                    const uploadTask = uploadBytesResumable(storageRef, file);
+
+                    uploadTask.on('state_changed',
+                        (snapshot) => {
+                            const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+                            uploadProgress.textContent = `Upload is ${progress.toFixed(2)}% done`;
+                        },
+                        (error) => {
+                            console.error("Upload failed:", error);
+                            showMessage(`File upload failed: ${error.message}`, 'error');
+                            hideLoading();
+                            uploadFileBtn.disabled = false;
+                        },
+                        async () => {
+                            fileUrl = await getDownloadURL(uploadTask.snapshot.ref);
+                            fileType = file.type;
+                            // Save metadata to Firestore only after file upload is complete
+                            await addDoc(collection(db, `artifacts/${appId}/public/data/content`), {
+                                type: youtubeUrl ? 'video' : 'file', // If YouTube URL is provided, treat as video
+                                title: title,
+                                fileUrl: fileUrl,
+                                fileType: fileType,
+                                youtubeUrl: youtubeUrl || null, // Store YouTube URL if provided
+                                uploaderId: userId,
+                                uploaderEmail: auth.currentUser.email || 'Anonymous',
+                                timestamp: serverTimestamp()
+                            });
+                            showMessage('File uploaded and metadata saved successfully!', 'success');
+                            fileInput.value = '';
+                            fileTitleInput.value = '';
+                            youtubeUrlInput.value = '';
+                            uploadProgress.textContent = '';
+                            hideLoading();
+                            uploadFileBtn.disabled = false;
+                            showSection(homeSection); // Go back to home after upload
+                        }
+                    );
+                } else if (youtubeUrl) {
+                    // If only YouTube URL is provided, save it directly
+                    await addDoc(collection(db, `artifacts/${appId}/public/data/content`), {
+                        type: 'video',
+                        title: title,
+                        youtubeUrl: youtubeUrl,
+                        fileUrl: null, // No direct file uploaded
+                        fileType: 'video/youtube',
+                        uploaderId: userId,
+                        uploaderEmail: auth.currentUser.email || 'Anonymous',
+                        timestamp: serverTimestamp()
+                    });
+                    showMessage('YouTube video link saved successfully!', 'success');
+                    fileTitleInput.value = '';
+                    youtubeUrlInput.value = '';
+                    uploadProgress.textContent = '';
+                    hideLoading();
+                    uploadFileBtn.disabled = false;
+                    showSection(homeSection); // Go back to home after upload
+                }
+
+
+            } catch (error) {
+                console.error("Error uploading file or saving metadata:", error);
+                showMessage(`Upload failed: ${error.message}`, 'error');
+                hideLoading();
+                uploadFileBtn.disabled = false;
+            }
+        }
+
+        async function createPost() {
+            if (!userId) {
+                showMessage('Please sign in to create posts.', 'error');
+                return;
+            }
+
+            const title = postTitleInput.value.trim();
+            const content = postContentInput.value.trim();
+
+            if (!title || !content) {
+                showMessage('Please enter both title and content for your post.', 'warning');
+                return;
+            }
+
+            showLoading();
+            submitPostBtn.disabled = true;
+
+            try {
+                await addDoc(collection(db, `artifacts/${appId}/public/data/content`), {
+                    type: 'post',
+                    title: title,
+                    content: content,
+                    authorId: userId,
+                    authorEmail: auth.currentUser.email || 'Anonymous',
+                    timestamp: serverTimestamp()
+                });
+                showMessage('Post published successfully!', 'success');
+                postTitleInput.value = '';
+                postContentInput.value = '';
+                hideLoading();
+                submitPostBtn.disabled = false;
+                showSection(homeSection); // Go back to home after posting
+            } catch (error) {
+                console.error("Error creating post:", error);
+                showMessage(`Failed to publish post: ${error.message}`, 'error');
+                hideLoading();
+                submitPostBtn.disabled = false;
+            }
+        }
+
+        // --- Event Listeners ---
+        homeBtn.addEventListener('click', () => showSection(homeSection));
+        uploadBtn.addEventListener('click', () => showSection(uploadSection));
+        createPostBtn.addEventListener('click', () => showSection(createPostSection));
+        authBtn.addEventListener('click', () => showSection(authSection));
+
+        signUpBtn.addEventListener('click', handleSignUp);
+        signInBtn.addEventListener('click', handleSignIn);
+        signOutBtn.addEventListener('click', handleSignOut);
+
+        uploadFileBtn.addEventListener('click', uploadFile);
+        submitPostBtn.addEventListener('click', createPost);
+
+        // --- Initialize on Window Load ---
+        window.onload = initializeFirebase;
+
+    </script>
+</body>
+</html>
